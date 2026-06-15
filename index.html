@@ -1,15 +1,11 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VIP Phone | Tecnología Elite Nicaragua</title>
-    
-    <!-- Fuentes (Corregido) -->
-    <link href="https://googleapis.com" rel="stylesheet">
-    <!-- Iconos (Corregido) -->
-    <link rel="stylesheet" href="https://cloudflare.com">
-
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,24 +21,146 @@
                 <a href="#hero">Inicio</a>
                 <a href="#productos">Catálogo</a>
                 <a href="#contactos" class="btn-nav">Reservar ya</a>
+                <button class="btn-admin-toggle" id="btnAdminToggle" onclick="toggleAdminPanel()">
+                    <i class="fas fa-lock"></i> Admin
+                </button>
             </div>
         </nav>
     </header>
 
+    <!-- PANEL DE ADMINISTRACIÓN -->
+    <div id="adminOverlay" class="admin-overlay hidden">
+        <div class="admin-panel">
+            <div class="admin-header">
+                <h2><i class="fas fa-cogs"></i> Panel de Administración</h2>
+                <button class="admin-close" onclick="closeAdminPanel()"><i class="fas fa-times"></i></button>
+            </div>
+
+            <!-- LOGIN -->
+            <div id="adminLogin" class="admin-section">
+                <p class="admin-desc">Ingresa la contraseña para gestionar el catálogo.</p>
+                <div class="admin-login-form">
+                    <input type="password" id="adminPassword" placeholder="Contraseña" onkeydown="if(event.key==='Enter') checkPassword()">
+                    <button class="btn-admin-action" onclick="checkPassword()"><i class="fas fa-sign-in-alt"></i> Entrar</button>
+                </div>
+                <p id="loginError" class="login-error hidden">Contraseña incorrecta.</p>
+            </div>
+
+            <!-- PANEL PRINCIPAL (solo si está autenticado) -->
+            <div id="adminMain" class="admin-section hidden">
+                <div class="admin-tabs">
+                    <button class="tab-btn active" onclick="showTab('tabAgregar')">Agregar Producto</button>
+                    <button class="tab-btn" onclick="showTab('tabEditar')">Editar / Eliminar</button>
+                </div>
+
+                <!-- TAB: AGREGAR -->
+                <div id="tabAgregar" class="tab-content">
+                    <div class="form-group">
+                        <label>Nombre del Producto</label>
+                        <input type="text" id="newName" placeholder="Ej: iPhone 15 Pro Max">
+                    </div>
+                    <div class="form-group">
+                        <label>Descripción</label>
+                        <textarea id="newDesc" rows="3" placeholder="Ej: Envío gratis + Garantía..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Precio (USD)</label>
+                        <input type="text" id="newPrice" placeholder="Ej: $999">
+                    </div>
+                    <div class="form-group">
+                        <label>Etiqueta (tag)</label>
+                        <input type="text" id="newTag" placeholder="Ej: Alta Gama, PRO, Nuevo">
+                    </div>
+                    <div class="form-group">
+                        <label>Foto del Producto</label>
+                        <div class="upload-area" id="uploadArea" onclick="document.getElementById('newImgFile').click()">
+                            <div class="upload-placeholder" id="uploadPlaceholder">
+                                <i class="fas fa-camera"></i>
+                                <span>Toca aquí para subir foto</span>
+                                <small>JPG, PNG, WEBP — desde galería o cámara</small>
+                            </div>
+                            <img id="newImgPreview" class="img-preview hidden" alt="Vista previa">
+                        </div>
+                        <input type="file" id="newImgFile" accept="image/*" style="display:none" onchange="previewImage(this,'newImgPreview','uploadPlaceholder','newImgData')">
+                        <input type="hidden" id="newImgData">
+                        <button type="button" class="btn-remove-img hidden" id="btnRemoveNew" onclick="removeImage('newImgPreview','uploadPlaceholder','newImgData','btnRemoveNew','newImgFile')">
+                            <i class="fas fa-times"></i> Quitar foto
+                        </button>
+                    </div>
+                    <button class="btn-admin-action full" onclick="agregarProducto()">
+                        <i class="fas fa-plus-circle"></i> Agregar al Catálogo
+                    </button>
+                    <p id="addSuccess" class="add-success hidden"><i class="fas fa-check-circle"></i> ¡Producto agregado!</p>
+                </div>
+
+                <!-- TAB: EDITAR/ELIMINAR -->
+                <div id="tabEditar" class="tab-content hidden">
+                    <p class="admin-desc">Selecciona un producto para editarlo o eliminarlo.</p>
+                    <div id="productListAdmin" class="product-list-admin"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR PRODUCTO -->
+    <div id="editModal" class="edit-modal hidden">
+        <div class="edit-modal-content">
+            <div class="admin-header">
+                <h3><i class="fas fa-edit"></i> Editar Producto</h3>
+                <button class="admin-close" onclick="closeEditModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="form-group">
+                <label>Nombre</label>
+                <input type="text" id="editName">
+            </div>
+            <div class="form-group">
+                <label>Descripción</label>
+                <textarea id="editDesc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Precio</label>
+                <input type="text" id="editPrice">
+            </div>
+            <div class="form-group">
+                <label>Etiqueta</label>
+                <input type="text" id="editTag">
+            </div>
+            <div class="form-group">
+                <label>Foto del Producto</label>
+                <div class="upload-area" id="editUploadArea" onclick="document.getElementById('editImgFile').click()">
+                    <div class="upload-placeholder" id="editUploadPlaceholder">
+                        <i class="fas fa-camera"></i>
+                        <span>Toca aquí para cambiar foto</span>
+                        <small>JPG, PNG, WEBP</small>
+                    </div>
+                    <img id="editImgPreview" class="img-preview hidden" alt="Vista previa">
+                </div>
+                <input type="file" id="editImgFile" accept="image/*" style="display:none" onchange="previewImage(this,'editImgPreview','editUploadPlaceholder','editImgData')">
+                <input type="hidden" id="editImgData">
+                <button type="button" class="btn-remove-img hidden" id="btnRemoveEdit" onclick="removeImage('editImgPreview','editUploadPlaceholder','editImgData','btnRemoveEdit','editImgFile')">
+                    <i class="fas fa-times"></i> Quitar foto
+                </button>
+            </div>
+            <button class="btn-admin-action full" onclick="guardarEdicion()">
+                <i class="fas fa-save"></i> Guardar Cambios
+            </button>
+        </div>
+    </div>
+
     <main>
-        <!-- HERO SECTION (Cerrado correctamente) -->
+        <!-- HERO SECTION -->
         <section id="hero">
             <div class="hero-content container">
                 <span class="badge-vip">Elite Mobile, tv and Service</span>
-                <h1>Exclusividad en <span>Managua y tipitapa</span></h1>
+                <h1>Exclusividad en <span>Managua y Tipitapa</span></h1>
                 <p>Equipos de alta gama con envíos garantizados a Managua y Tipitapa.</p>
-                <a href="https://wa.me/+50558268713" target="_blank" class="cta-herowat">WhatsApp</a>
-                <a href="https://www.facebook.com/profile.php?id=61574584821262&mibextid=wwXIfr&rdid=44gmVFxKeE4yJzpU&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F14dPF9kLHAn%2F%3Fmibextid%3DwwXIfr#" target="_blank" class="cta-heroface"> Facebook</a>
+                <a href="https://wa.me/+50558268713" target="_blank" class="cta-herowat"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+                <a href="https://www.facebook.com/profile.php?id=61574584821262" target="_blank" class="cta-heroface"><i class="fab fa-facebook"></i> Facebook</a>
                 <a href="#productos" class="cta-hero">Ver Catálogo</a>
             </div>
         </section>
 
-        <!-- SECCIÓN DE BENEFICIOS -->
+        <!-- BENEFICIOS -->
         <section id="features" class="container">
             <div class="features-grid">
                 <div class="feature-item">
@@ -53,144 +171,21 @@
                 <div class="feature-item">
                     <i class="fas fa-shield-alt"></i>
                     <h3>Servicio Extra</h3>
-                    <p>Instalación de soporteria de tv 
-                        mantenimento de equipos y asesoría personalizada.</p>   
-                    </p>
+                    <p>Instalación de soportería de TV, mantenimiento de equipos y asesoría personalizada.</p>
                 </div>
                 <div class="feature-item">
                     <i class="fas fa-crown"></i>
-                    <h3>Atención al cliente VIP</h3>
+                    <h3>Atención VIP</h3>
                     <p>Asesoría personalizada 24/7 por WhatsApp.</p>
                 </div>
             </div>
         </section>
 
-        <!-- SECCIÓN DE PRODUCTOS -->
+        <!-- CATÁLOGO -->
         <section id="productos" class="container">
             <h2 class="section-title">Nuestra Colección</h2>
-            <div class="productos-grid">
-                
-                <!-- Producto 1 -->
-                <article class="product-card">
-                    <div class="img-box">
-                        <img src="silla1...jpeg" alt="Combo Pro Gamer">
-                        <span class="tag">PRO</span>
-                    </div>
-                    <div class="product-info">
-                        <h3> Silla Gamer Edición Azul</h3>
-                        <p class="descripcion"> Envio Gratis En Managua + Armada de silla Gratis + Garantia Garantizada + Atencion  Personalizada</p>
-                        <p class="precio"> $125</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-
-                         <article class="product-card">
-                    <div class="img-box">
-                        <img src="silla 2.jpeg" alt="Combo Pro Gamer">
-                        <span class="tag">PRO</span>
-                    </div>
-                    <div class="product-info">
-                        <h3> Silla Gamer Edición Roja</h3>
-                        <p class="descripcion"> Envio Gratis En Managua + Armada de silla Gratis + Garantia Garantizada + Atencion  Personalizada</p>
-                        <p class="precio">$125</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-
-                <!-- Producto 2 -->
-                <article class="product-card">
-                    <div class="img-box">
-                        <img src="silla 3.jpeg" alt="Kit Productivity">
-                        <span class="tag">PRO</span>
-                    </div>
-                    <div class="product-info">
-                        <h3>Silla Gamer Edición Negra</h3>
-                        <p class="descripcion"> Envio Gratis En Managua + Armada de silla Gratis + Garantia Garantizada + Atencion  Personalizada</p>
-                        <p class="precio">$125</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-                    <article class="product-card">
-                    <div class="img-box">
-                        <img src="silla 4.jpeg" alt="Kit Productivity">
-                        <span class="tag">PRO</span>
-                    </div>
-                    <div class="product-info">
-                        <h3>Silla Gamer Edición Naranja</h3>
-                        <p class="descripcion"> Envio Gratis En Managua + Armada de silla Gratis + Garantia Garantizada + Atencion  Personalizada</p>
-                        <p class="precio">$125</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-                        </article>
-                    <article class="product-card">
-                    <div class="img-box">
-                        <img src="smart tv 75.jpeg" alt="Kit Productivity">
-                        <span class="tag">Alta Gama</span>
-                    </div>
-                    <div class="product-info">
-                        <h3>Smart TV "75" pulgadas </h3>
-                        <p class="descripcion"> Envio Gratis + Instalacion de soporteria de Tv + factura membretada+Garantía Certificada</p>
-                        <p class="precio">$780</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-                        </article>
-                    <article class="product-card">
-                    <div class="img-box">
-                        <img src="smart tv 65.jpeg" alt="Kit Productivity">
-                        <span class="tag">Alta gama</span>
-                    </div>
-                    <div class="product-info">
-                        <h3>Smart TV "65" pulgadas</h3>
-                        <p class="descripcion"> Envio Gratis + Instalacion de soporteria de Tv + factura membretada+Garantía Certificada</p>
-                        <p class="precio">$609.99</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-                      </article>
-                    <article class="product-card">
-                    <div class="img-box">
-                        <img src="smart tv 55.jpeg" alt="Kit Productivity">
-                        <span class="tag">media gama</span>
-                    </div>
-                    <div class="product-info">
-                        <h3>Smart TV "55" pulgadas</h3>
-                        <p class="descripcion"> Envio Gratis + Instalacion de soporteria de Tv + factura membretada+Garantía Certificada</p>
-                        <p class="precio">$560</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-                      </article>
-                    <article class="product-card">
-                    <div class="img-box">
-                        <img src="s25 ultra.jpeg" alt="Kit Productivity">
-                        <span class="tag">media gama</span>
-                    </div>
-                    <div class="product-info">
-                        <h3>S25 Ultra</h3>
-                        <p class="descripcion"> Envio Gratis En Managua + Productos  100% Originales + Garantia Garantizada + Atencion  Personalizada</p>
-                        <p class="precio">$125</p>
-                        <a href="https://wa.me/+50558268713" target="_blank" class="btn-buy">
-                            <i class="fab fa-whatsapp"></i> Comprar Por WhatsApp
-                        </a>
-                    </div>
-                </article>
-
+            <div class="productos-grid" id="productosGrid">
+                <!-- Los productos se renderizan aquí por JS -->
             </div>
         </section>
     </main>
@@ -213,13 +208,285 @@
     </footer>
 
     <script>
-        document.getElementById('vip-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const nombre = document.getElementById('user-name').value;
-            const mensaje = document.getElementById('user-msg').value;
-            const url = `https://wa.me/+50558268713?text=Hola, soy ${nombre}. Quiero información sobre: ${mensaje}`;
-            window.open(url, '_blank');
+    // ─────────────────────────────────────────────
+    // DATOS INICIALES (productos originales)
+    // ─────────────────────────────────────────────
+    const WHATSAPP = '+50558268713';
+    const ADMIN_PASSWORD = 'vipphone2026'; // Cambia esta contraseña
+
+    const productosIniciales = [
+        { id: 1, nombre: 'Silla Gamer Edición Azul', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla1...jpeg' },
+        { id: 2, nombre: 'Silla Gamer Edición Roja', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla 2.jpeg' },
+        { id: 3, nombre: 'Silla Gamer Edición Negra', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla 3.jpeg' },
+        { id: 4, nombre: 'Silla Gamer Edición Naranja', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla 4.jpeg' },
+        { id: 5, nombre: 'Smart TV 75" pulgadas', desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada', precio: '$780', tag: 'Alta Gama', img: 'smart tv 75.jpeg' },
+        { id: 6, nombre: 'Smart TV 65" pulgadas', desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada', precio: '$609.99', tag: 'Alta Gama', img: 'smart tv 65.jpeg' },
+        { id: 7, nombre: 'Smart TV 55" pulgadas', desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada', precio: '$560', tag: 'Media Gama', img: 'smart tv 55.jpeg' },
+        { id: 8, nombre: 'S25 Ultra', desc: 'Envío Gratis en Managua + Productos 100% Originales + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'Media Gama', img: 's25 ultra.jpeg' },
+    ];
+
+    // ─────────────────────────────────────────────
+    // GESTIÓN DE DATOS (localStorage)
+    // ─────────────────────────────────────────────
+    function getProductos() {
+        const saved = localStorage.getItem('vipphone_productos');
+        return saved ? JSON.parse(saved) : productosIniciales;
+    }
+
+    function saveProductos(productos) {
+        localStorage.setItem('vipphone_productos', JSON.stringify(productos));
+    }
+
+    function getNextId(productos) {
+        return productos.length ? Math.max(...productos.map(p => p.id)) + 1 : 1;
+    }
+
+    // ─────────────────────────────────────────────
+    // RENDERIZAR CATÁLOGO
+    // ─────────────────────────────────────────────
+    function renderCatalogo() {
+        const grid = document.getElementById('productosGrid');
+        const productos = getProductos();
+        grid.innerHTML = productos.map(p => `
+            <article class="product-card">
+                <div class="img-box">
+                    <img src="${p.img}" alt="${p.nombre}" onerror="this.src='https://placehold.co/400x250/121212/d4af37?text=VIP+PHONE'">
+                    <span class="tag">${p.tag}</span>
+                </div>
+                <div class="product-info">
+                    <h3>${p.nombre}</h3>
+                    <p class="descripcion">${p.desc}</p>
+                    <p class="precio">${p.precio}</p>
+                    <a href="https://wa.me/${WHATSAPP}?text=Hola, quiero información sobre: ${encodeURIComponent(p.nombre)}" target="_blank" class="btn-buy">
+                        <i class="fab fa-whatsapp"></i> Comprar por WhatsApp
+                    </a>
+                </div>
+            </article>
+        `).join('');
+    }
+
+    // ─────────────────────────────────────────────
+    // PANEL ADMIN
+    // ─────────────────────────────────────────────
+    let adminAuth = false;
+    let editandoId = null;
+
+    function toggleAdminPanel() {
+        document.getElementById('adminOverlay').classList.toggle('hidden');
+        if (!adminAuth) {
+            document.getElementById('adminLogin').classList.remove('hidden');
+            document.getElementById('adminMain').classList.add('hidden');
+        }
+    }
+
+    function closeAdminPanel() {
+        document.getElementById('adminOverlay').classList.add('hidden');
+    }
+
+    function checkPassword() {
+        const pw = document.getElementById('adminPassword').value;
+        const err = document.getElementById('loginError');
+        if (pw === ADMIN_PASSWORD) {
+            adminAuth = true;
+            document.getElementById('adminLogin').classList.add('hidden');
+            document.getElementById('adminMain').classList.remove('hidden');
+            err.classList.add('hidden');
+            renderListaAdmin();
+        } else {
+            err.classList.remove('hidden');
+        }
+    }
+
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.remove('hidden');
+        event.target.classList.add('active');
+        if (tabId === 'tabEditar') renderListaAdmin();
+    }
+
+    // ─────────────────────────────────────────────
+    // MANEJO DE IMÁGENES (upload → base64)
+    // ─────────────────────────────────────────────
+    function previewImage(input, previewId, placeholderId, dataId) {
+        const file = input.files[0];
+        if (!file) return;
+
+        // Comprimir/redimensionar imagen antes de guardar
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const MAX = 800;
+                let w = img.width, h = img.height;
+                if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+                if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                const base64 = canvas.toDataURL('image/jpeg', 0.82);
+
+                // Mostrar preview
+                const preview = document.getElementById(previewId);
+                preview.src = base64;
+                preview.classList.remove('hidden');
+                document.getElementById(placeholderId).classList.add('hidden');
+                document.getElementById(dataId).value = base64;
+
+                // Mostrar botón quitar (busca el btn-remove-img más cercano)
+                const area = document.getElementById(previewId).closest('.form-group');
+                const btnRemove = area.querySelector('.btn-remove-img');
+                if (btnRemove) btnRemove.classList.remove('hidden');
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function removeImage(previewId, placeholderId, dataId, btnRemoveId, fileInputId) {
+        document.getElementById(previewId).classList.add('hidden');
+        document.getElementById(previewId).src = '';
+        document.getElementById(placeholderId).classList.remove('hidden');
+        document.getElementById(dataId).value = '';
+        document.getElementById(btnRemoveId).classList.add('hidden');
+        document.getElementById(fileInputId).value = '';
+    }
+
+    // ─────────────────────────────────────────────
+    // AGREGAR PRODUCTO
+    // ─────────────────────────────────────────────
+    function agregarProducto() {
+        const nombre = document.getElementById('newName').value.trim();
+        const desc   = document.getElementById('newDesc').value.trim();
+        const precio = document.getElementById('newPrice').value.trim();
+        const tag    = document.getElementById('newTag').value.trim();
+        const img    = document.getElementById('newImgData').value ||
+                       'https://placehold.co/400x250/121212/d4af37?text=VIP+PHONE';
+
+        if (!nombre || !precio) {
+            alert('El nombre y el precio son obligatorios.');
+            return;
+        }
+
+        const productos = getProductos();
+        productos.push({
+            id: getNextId(productos),
+            nombre, desc,
+            precio: precio.startsWith('$') ? precio : '$' + precio,
+            tag: tag || 'Nuevo',
+            img
         });
+        saveProductos(productos);
+        renderCatalogo();
+
+        // Limpiar form
+        ['newName','newDesc','newPrice','newTag'].forEach(id => document.getElementById(id).value = '');
+        removeImage('newImgPreview','uploadPlaceholder','newImgData','btnRemoveNew','newImgFile');
+
+        const ok = document.getElementById('addSuccess');
+        ok.classList.remove('hidden');
+        setTimeout(() => ok.classList.add('hidden'), 3000);
+    }
+
+    // ─────────────────────────────────────────────
+    // LISTA EDITAR/ELIMINAR
+    // ─────────────────────────────────────────────
+    function renderListaAdmin() {
+        const productos = getProductos();
+        const container = document.getElementById('productListAdmin');
+        container.innerHTML = productos.map(p => `
+            <div class="admin-product-item">
+                <img src="${p.img}" onerror="this.src='https://placehold.co/60x60/121212/d4af37?text=IMG'" alt="${p.nombre}">
+                <div class="admin-product-info">
+                    <strong>${p.nombre}</strong>
+                    <span>${p.precio}</span>
+                </div>
+                <div class="admin-product-actions">
+                    <button class="btn-edit" onclick="abrirEditar(${p.id})"><i class="fas fa-edit"></i></button>
+                    <button class="btn-delete" onclick="eliminarProducto(${p.id})"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function eliminarProducto(id) {
+        if (!confirm('¿Eliminar este producto del catálogo?')) return;
+        let productos = getProductos().filter(p => p.id !== id);
+        saveProductos(productos);
+        renderCatalogo();
+        renderListaAdmin();
+    }
+
+    // ─────────────────────────────────────────────
+    // EDITAR PRODUCTO
+    // ─────────────────────────────────────────────
+    function abrirEditar(id) {
+        const p = getProductos().find(p => p.id === id);
+        if (!p) return;
+        editandoId = id;
+        document.getElementById('editName').value  = p.nombre;
+        document.getElementById('editDesc').value  = p.desc;
+        document.getElementById('editPrice').value = p.precio;
+        document.getElementById('editTag').value   = p.tag;
+
+        // Mostrar imagen actual en preview
+        const preview = document.getElementById('editImgPreview');
+        const placeholder = document.getElementById('editUploadPlaceholder');
+        if (p.img && !p.img.includes('placehold.co')) {
+            preview.src = p.img;
+            preview.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            document.getElementById('btnRemoveEdit').classList.remove('hidden');
+        } else {
+            preview.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            document.getElementById('btnRemoveEdit').classList.add('hidden');
+        }
+        document.getElementById('editImgData').value = p.img || '';
+        document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').classList.add('hidden');
+        editandoId = null;
+        // Limpiar modal
+        removeImage('editImgPreview','editUploadPlaceholder','editImgData','btnRemoveEdit','editImgFile');
+    }
+
+    function guardarEdicion() {
+        let productos = getProductos();
+        const idx = productos.findIndex(p => p.id === editandoId);
+        if (idx === -1) return;
+        const nuevaImg = document.getElementById('editImgData').value || productos[idx].img;
+        productos[idx] = {
+            ...productos[idx],
+            nombre: document.getElementById('editName').value.trim(),
+            desc:   document.getElementById('editDesc').value.trim(),
+            precio: document.getElementById('editPrice').value.trim(),
+            tag:    document.getElementById('editTag').value.trim(),
+            img:    nuevaImg,
+        };
+        saveProductos(productos);
+        renderCatalogo();
+        renderListaAdmin();
+        closeEditModal();
+    }
+
+    // ─────────────────────────────────────────────
+    // FORMULARIO FOOTER
+    // ─────────────────────────────────────────────
+    document.getElementById('vip-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const nombre = document.getElementById('user-name').value;
+        const mensaje = document.getElementById('user-msg').value;
+        window.open(`https://wa.me/${WHATSAPP}?text=Hola, soy ${nombre}. Quiero información sobre: ${mensaje}`, '_blank');
+    });
+
+    // ─────────────────────────────────────────────
+    // INICIO
+    // ─────────────────────────────────────────────
+    renderCatalogo();
     </script>
 </body>
 </html>
