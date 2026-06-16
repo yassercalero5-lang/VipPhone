@@ -1,4 +1,4 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -46,8 +46,13 @@
                 <p id="loginError" class="login-error hidden">Contraseña incorrecta.</p>
             </div>
 
-            <!-- PANEL PRINCIPAL (solo si está autenticado) -->
+            <!-- PANEL PRINCIPAL -->
             <div id="adminMain" class="admin-section hidden">
+                <!-- Estado de conexión Firebase -->
+                <div id="firebaseStatus" class="firebase-status">
+                    <i class="fas fa-circle-notch fa-spin"></i> Conectando a la base de datos...
+                </div>
+
                 <div class="admin-tabs">
                     <button class="tab-btn active" onclick="showTab('tabAgregar')">Agregar Producto</button>
                     <button class="tab-btn" onclick="showTab('tabEditar')">Editar / Eliminar</button>
@@ -90,7 +95,8 @@
                     <button class="btn-admin-action full" onclick="agregarProducto()">
                         <i class="fas fa-plus-circle"></i> Agregar al Catálogo
                     </button>
-                    <p id="addSuccess" class="add-success hidden"><i class="fas fa-check-circle"></i> ¡Producto agregado!</p>
+                    <p id="addSuccess" class="add-success hidden"><i class="fas fa-check-circle"></i> ¡Producto agregado en todos los dispositivos!</p>
+                    <p id="addError" class="login-error hidden"><i class="fas fa-times-circle"></i> Error al guardar. Verifica tu conexión.</p>
                 </div>
 
                 <!-- TAB: EDITAR/ELIMINAR -->
@@ -181,12 +187,14 @@
             </div>
         </section>
 
-        <!-- CATÁLOGO -->
+        <!-- LOADING CATÁLOGO -->
         <section id="productos" class="container">
             <h2 class="section-title">Nuestra Colección</h2>
-            <div class="productos-grid" id="productosGrid">
-                <!-- Los productos se renderizan aquí por JS -->
+            <div id="catalogoLoading" class="catalogo-loading">
+                <i class="fas fa-circle-notch fa-spin"></i>
+                <p>Cargando productos...</p>
             </div>
+            <div class="productos-grid" id="productosGrid"></div>
         </section>
     </main>
 
@@ -207,57 +215,80 @@
         <p class="copy">&copy; 2026 VIP PHONE NICARAGUA</p>
     </footer>
 
-    <script>
-    // ─────────────────────────────────────────────
-    // DATOS INICIALES (productos originales)
-    // ─────────────────────────────────────────────
-    const WHATSAPP = '+50558268713';
-    const ADMIN_PASSWORD = 'vipphone2026'; // Cambia esta contraseña
+    <!-- ════════════════════════════════════════════
+         FIREBASE SDK
+    ════════════════════════════════════════════ -->
+    <script type="module">
+    // ─── IMPORTAR FIREBASE ───────────────────────
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getFirestore, collection, getDocs, addDoc, updateDoc,
+        deleteDoc, doc, onSnapshot, query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+    // ════════════════════════════════════════
+    // ⚠️  PASO 1: PEGA AQUÍ TU CONFIGURACIÓN
+    //     de Firebase (ver instrucciones abajo)
+    // ════════════════════════════════════════
+    const firebaseConfig = {
+        apiKey:            "PEGA_TU_API_KEY_AQUI",
+        authDomain:        "PEGA_TU_AUTH_DOMAIN_AQUI",
+        projectId:         "PEGA_TU_PROJECT_ID_AQUI",
+        storageBucket:     "PEGA_TU_STORAGE_BUCKET_AQUI",
+        messagingSenderId: "PEGA_TU_MESSAGING_SENDER_ID_AQUI",
+        appId:             "PEGA_TU_APP_ID_AQUI"
+    };
+
+    // ─── CONSTANTES ─────────────────────────────
+    const WHATSAPP     = '+50558268713';
+    const ADMIN_PASSWORD = 'vipphone2026';
+
+    // Productos iniciales (se suben UNA sola vez a Firebase si la BD está vacía)
     const productosIniciales = [
-        { id: 1, nombre: 'Silla Gamer Edición Azul', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla1...jpeg' },
-        { id: 2, nombre: 'Silla Gamer Edición Roja', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla 2.jpeg' },
-        { id: 3, nombre: 'Silla Gamer Edición Negra', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla 3.jpeg' },
-        { id: 4, nombre: 'Silla Gamer Edición Naranja', desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'PRO', img: 'silla 4.jpeg' },
-        { id: 5, nombre: 'Smart TV 75" pulgadas', desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada', precio: '$780', tag: 'Alta Gama', img: 'smart tv 75.jpeg' },
-        { id: 6, nombre: 'Smart TV 65" pulgadas', desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada', precio: '$609.99', tag: 'Alta Gama', img: 'smart tv 65.jpeg' },
-        { id: 7, nombre: 'Smart TV 55" pulgadas', desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada', precio: '$560', tag: 'Media Gama', img: 'smart tv 55.jpeg' },
-        { id: 8, nombre: 'S25 Ultra', desc: 'Envío Gratis en Managua + Productos 100% Originales + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'Media Gama', img: 's25 ultra.jpeg' },
+        { nombre: 'Silla Gamer Edición Azul',     desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125',    tag: 'PRO',        img: '', orden: 1 },
+        { nombre: 'Silla Gamer Edición Roja',     desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125',    tag: 'PRO',        img: '', orden: 2 },
+        { nombre: 'Silla Gamer Edición Negra',    desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125',    tag: 'PRO',        img: '', orden: 3 },
+        { nombre: 'Silla Gamer Edición Naranja',  desc: 'Envío Gratis en Managua + Armada de silla Gratis + Garantía Garantizada + Atención Personalizada', precio: '$125',    tag: 'PRO',        img: '', orden: 4 },
+        { nombre: 'Smart TV 75" pulgadas',        desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada',        precio: '$780',    tag: 'Alta Gama',  img: '', orden: 5 },
+        { nombre: 'Smart TV 65" pulgadas',        desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada',        precio: '$609.99', tag: 'Alta Gama',  img: '', orden: 6 },
+        { nombre: 'Smart TV 55" pulgadas',        desc: 'Envío Gratis + Instalación de soportería de TV + Factura membretada + Garantía Certificada',        precio: '$560',    tag: 'Media Gama', img: '', orden: 7 },
+        { nombre: 'S25 Ultra',                    desc: 'Envío Gratis en Managua + Productos 100% Originales + Garantía Garantizada + Atención Personalizada', precio: '$125', tag: 'Media Gama', img: '', orden: 8 },
     ];
 
-    // ─────────────────────────────────────────────
-    // GESTIÓN DE DATOS (localStorage)
-    // ─────────────────────────────────────────────
-    function getProductos() {
-        const saved = localStorage.getItem('vipphone_productos');
-        return saved ? JSON.parse(saved) : productosIniciales;
-    }
+    // ─── INIT FIREBASE ───────────────────────────
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+    const colRef = collection(db, 'productos');
 
-    function saveProductos(productos) {
-        localStorage.setItem('vipphone_productos', JSON.stringify(productos));
-    }
+    let adminAuth  = false;
+    let editandoId = null; // ID de documento Firestore
+    let productosCache = []; // copia local para el admin
 
-    function getNextId(productos) {
-        return productos.length ? Math.max(...productos.map(p => p.id)) + 1 : 1;
-    }
+    // ─── FUNCIONES DE RENDER ─────────────────────
+    function renderCatalogo(productos) {
+        const grid    = document.getElementById('productosGrid');
+        const loading = document.getElementById('catalogoLoading');
+        loading.style.display = 'none';
 
-    // ─────────────────────────────────────────────
-    // RENDERIZAR CATÁLOGO
-    // ─────────────────────────────────────────────
-    function renderCatalogo() {
-        const grid = document.getElementById('productosGrid');
-        const productos = getProductos();
+        if (!productos.length) {
+            grid.innerHTML = '<p style="color:#aaa;text-align:center;grid-column:1/-1">No hay productos en el catálogo.</p>';
+            return;
+        }
+
         grid.innerHTML = productos.map(p => `
             <article class="product-card">
                 <div class="img-box">
-                    <img src="${p.img}" alt="${p.nombre}" onerror="this.src='https://placehold.co/400x250/121212/d4af37?text=VIP+PHONE'">
+                    <img src="${p.img || 'https://placehold.co/400x250/121212/d4af37?text=VIP+PHONE'}"
+                         alt="${p.nombre}"
+                         onerror="this.src='https://placehold.co/400x250/121212/d4af37?text=VIP+PHONE'">
                     <span class="tag">${p.tag}</span>
                 </div>
                 <div class="product-info">
                     <h3>${p.nombre}</h3>
                     <p class="descripcion">${p.desc}</p>
                     <p class="precio">${p.precio}</p>
-                    <a href="https://wa.me/${WHATSAPP}?text=Hola, quiero información sobre: ${encodeURIComponent(p.nombre)}" target="_blank" class="btn-buy">
+                    <a href="https://wa.me/${WHATSAPP}?text=Hola, quiero información sobre: ${encodeURIComponent(p.nombre)}"
+                       target="_blank" class="btn-buy">
                         <i class="fab fa-whatsapp"></i> Comprar por WhatsApp
                     </a>
                 </div>
@@ -265,173 +296,152 @@
         `).join('');
     }
 
-    // ─────────────────────────────────────────────
-    // PANEL ADMIN
-    // ─────────────────────────────────────────────
-    let adminAuth = false;
-    let editandoId = null;
+    function renderListaAdmin(productos) {
+        const container = document.getElementById('productListAdmin');
+        if (!productos.length) {
+            container.innerHTML = '<p style="color:#aaa;font-size:.85rem">No hay productos aún.</p>';
+            return;
+        }
+        container.innerHTML = productos.map(p => `
+            <div class="admin-product-item">
+                <img src="${p.img || 'https://placehold.co/60x60/121212/d4af37?text=IMG'}"
+                     onerror="this.src='https://placehold.co/60x60/121212/d4af37?text=IMG'" alt="${p.nombre}">
+                <div class="admin-product-info">
+                    <strong>${p.nombre}</strong>
+                    <span>${p.precio}</span>
+                </div>
+                <div class="admin-product-actions">
+                    <button class="btn-edit"   onclick="window._abrirEditar('${p._docId}')"><i class="fas fa-edit"></i></button>
+                    <button class="btn-delete" onclick="window._eliminarProducto('${p._docId}')"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        `).join('');
+    }
 
-    function toggleAdminPanel() {
-        document.getElementById('adminOverlay').classList.toggle('hidden');
-        if (!adminAuth) {
-            document.getElementById('adminLogin').classList.remove('hidden');
-            document.getElementById('adminMain').classList.add('hidden');
+    // ─── ESCUCHAR CAMBIOS EN TIEMPO REAL ─────────
+    // Esto actualiza el catálogo automáticamente en TODOS los dispositivos
+    function iniciarListener() {
+        const q = query(colRef, orderBy('orden', 'asc'));
+        onSnapshot(q, (snapshot) => {
+            const productos = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
+            productosCache  = productos;
+            renderCatalogo(productos);
+            if (adminAuth) renderListaAdmin(productos);
+
+            // Estado Firebase OK
+            const status = document.getElementById('firebaseStatus');
+            if (status) {
+                status.innerHTML = '<i class="fas fa-circle" style="color:#07bf32;font-size:.6rem"></i> Base de datos conectada';
+                status.classList.add('connected');
+            }
+        }, (error) => {
+            console.error('Firebase error:', error);
+            const status = document.getElementById('firebaseStatus');
+            if (status) {
+                status.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#ff6b6b"></i> Error de conexión — revisa tu config de Firebase';
+            }
+        });
+    }
+
+    // ─── SEMBRAR DATOS INICIALES (solo si BD vacía) ─
+    async function sembrarSiVacio() {
+        const snap = await getDocs(colRef);
+        if (snap.empty) {
+            for (const p of productosIniciales) {
+                await addDoc(colRef, p);
+            }
         }
     }
 
-    function closeAdminPanel() {
-        document.getElementById('adminOverlay').classList.add('hidden');
-    }
-
-    function checkPassword() {
-        const pw = document.getElementById('adminPassword').value;
+    // ─── ADMIN: CONTRASEÑA ───────────────────────
+    window.checkPassword = function() {
+        const pw  = document.getElementById('adminPassword').value;
         const err = document.getElementById('loginError');
         if (pw === ADMIN_PASSWORD) {
             adminAuth = true;
             document.getElementById('adminLogin').classList.add('hidden');
             document.getElementById('adminMain').classList.remove('hidden');
             err.classList.add('hidden');
-            renderListaAdmin();
+            renderListaAdmin(productosCache);
         } else {
             err.classList.remove('hidden');
         }
-    }
+    };
 
-    function showTab(tabId) {
+    // ─── ADMIN: TABS ─────────────────────────────
+    window.showTab = function(tabId) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(tabId).classList.remove('hidden');
         event.target.classList.add('active');
-        if (tabId === 'tabEditar') renderListaAdmin();
-    }
+        if (tabId === 'tabEditar') renderListaAdmin(productosCache);
+    };
 
-    // ─────────────────────────────────────────────
-    // MANEJO DE IMÁGENES (upload → base64)
-    // ─────────────────────────────────────────────
-    function previewImage(input, previewId, placeholderId, dataId) {
-        const file = input.files[0];
-        if (!file) return;
-
-        // Comprimir/redimensionar imagen antes de guardar
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const img = new Image();
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                const MAX = 800;
-                let w = img.width, h = img.height;
-                if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
-                if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
-                canvas.width = w;
-                canvas.height = h;
-                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                const base64 = canvas.toDataURL('image/jpeg', 0.82);
-
-                // Mostrar preview
-                const preview = document.getElementById(previewId);
-                preview.src = base64;
-                preview.classList.remove('hidden');
-                document.getElementById(placeholderId).classList.add('hidden');
-                document.getElementById(dataId).value = base64;
-
-                // Mostrar botón quitar (busca el btn-remove-img más cercano)
-                const area = document.getElementById(previewId).closest('.form-group');
-                const btnRemove = area.querySelector('.btn-remove-img');
-                if (btnRemove) btnRemove.classList.remove('hidden');
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function removeImage(previewId, placeholderId, dataId, btnRemoveId, fileInputId) {
-        document.getElementById(previewId).classList.add('hidden');
-        document.getElementById(previewId).src = '';
-        document.getElementById(placeholderId).classList.remove('hidden');
-        document.getElementById(dataId).value = '';
-        document.getElementById(btnRemoveId).classList.add('hidden');
-        document.getElementById(fileInputId).value = '';
-    }
-
-    // ─────────────────────────────────────────────
-    // AGREGAR PRODUCTO
-    // ─────────────────────────────────────────────
-    function agregarProducto() {
+    // ─── ADMIN: AGREGAR ──────────────────────────
+    window.agregarProducto = async function() {
         const nombre = document.getElementById('newName').value.trim();
         const desc   = document.getElementById('newDesc').value.trim();
         const precio = document.getElementById('newPrice').value.trim();
         const tag    = document.getElementById('newTag').value.trim();
-        const img    = document.getElementById('newImgData').value ||
-                       'https://placehold.co/400x250/121212/d4af37?text=VIP+PHONE';
+        const img    = document.getElementById('newImgData').value || '';
 
-        if (!nombre || !precio) {
-            alert('El nombre y el precio son obligatorios.');
-            return;
+        if (!nombre || !precio) { alert('El nombre y el precio son obligatorios.'); return; }
+
+        const btn = document.querySelector('#tabAgregar .btn-admin-action.full');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Guardando...';
+
+        try {
+            const maxOrden = productosCache.length
+                ? Math.max(...productosCache.map(p => p.orden || 0)) + 1
+                : 1;
+
+            await addDoc(colRef, {
+                nombre,
+                desc,
+                precio: precio.startsWith('$') ? precio : '$' + precio,
+                tag: tag || 'Nuevo',
+                img,
+                orden: maxOrden
+            });
+
+            ['newName','newDesc','newPrice','newTag'].forEach(id => document.getElementById(id).value = '');
+            removeImage('newImgPreview','uploadPlaceholder','newImgData','btnRemoveNew','newImgFile');
+
+            const ok = document.getElementById('addSuccess');
+            ok.classList.remove('hidden');
+            setTimeout(() => ok.classList.add('hidden'), 3500);
+        } catch(e) {
+            console.error(e);
+            document.getElementById('addError').classList.remove('hidden');
+            setTimeout(() => document.getElementById('addError').classList.add('hidden'), 4000);
         }
 
-        const productos = getProductos();
-        productos.push({
-            id: getNextId(productos),
-            nombre, desc,
-            precio: precio.startsWith('$') ? precio : '$' + precio,
-            tag: tag || 'Nuevo',
-            img
-        });
-        saveProductos(productos);
-        renderCatalogo();
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-plus-circle"></i> Agregar al Catálogo';
+    };
 
-        // Limpiar form
-        ['newName','newDesc','newPrice','newTag'].forEach(id => document.getElementById(id).value = '');
-        removeImage('newImgPreview','uploadPlaceholder','newImgData','btnRemoveNew','newImgFile');
+    // ─── ADMIN: ELIMINAR ─────────────────────────
+    window._eliminarProducto = async function(docId) {
+        if (!confirm('¿Eliminar este producto del catálogo en todos los dispositivos?')) return;
+        try {
+            await deleteDoc(doc(db, 'productos', docId));
+        } catch(e) {
+            alert('Error al eliminar: ' + e.message);
+        }
+    };
 
-        const ok = document.getElementById('addSuccess');
-        ok.classList.remove('hidden');
-        setTimeout(() => ok.classList.add('hidden'), 3000);
-    }
-
-    // ─────────────────────────────────────────────
-    // LISTA EDITAR/ELIMINAR
-    // ─────────────────────────────────────────────
-    function renderListaAdmin() {
-        const productos = getProductos();
-        const container = document.getElementById('productListAdmin');
-        container.innerHTML = productos.map(p => `
-            <div class="admin-product-item">
-                <img src="${p.img}" onerror="this.src='https://placehold.co/60x60/121212/d4af37?text=IMG'" alt="${p.nombre}">
-                <div class="admin-product-info">
-                    <strong>${p.nombre}</strong>
-                    <span>${p.precio}</span>
-                </div>
-                <div class="admin-product-actions">
-                    <button class="btn-edit" onclick="abrirEditar(${p.id})"><i class="fas fa-edit"></i></button>
-                    <button class="btn-delete" onclick="eliminarProducto(${p.id})"><i class="fas fa-trash"></i></button>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    function eliminarProducto(id) {
-        if (!confirm('¿Eliminar este producto del catálogo?')) return;
-        let productos = getProductos().filter(p => p.id !== id);
-        saveProductos(productos);
-        renderCatalogo();
-        renderListaAdmin();
-    }
-
-    // ─────────────────────────────────────────────
-    // EDITAR PRODUCTO
-    // ─────────────────────────────────────────────
-    function abrirEditar(id) {
-        const p = getProductos().find(p => p.id === id);
+    // ─── ADMIN: ABRIR EDITAR ─────────────────────
+    window._abrirEditar = function(docId) {
+        const p = productosCache.find(x => x._docId === docId);
         if (!p) return;
-        editandoId = id;
+        editandoId = docId;
         document.getElementById('editName').value  = p.nombre;
         document.getElementById('editDesc').value  = p.desc;
         document.getElementById('editPrice').value = p.precio;
         document.getElementById('editTag').value   = p.tag;
 
-        // Mostrar imagen actual en preview
-        const preview = document.getElementById('editImgPreview');
+        const preview     = document.getElementById('editImgPreview');
         const placeholder = document.getElementById('editUploadPlaceholder');
         if (p.img && !p.img.includes('placehold.co')) {
             preview.src = p.img;
@@ -445,48 +455,111 @@
         }
         document.getElementById('editImgData').value = p.img || '';
         document.getElementById('editModal').classList.remove('hidden');
-    }
+    };
 
-    function closeEditModal() {
+    // ─── ADMIN: GUARDAR EDICIÓN ──────────────────
+    window.guardarEdicion = async function() {
+        if (!editandoId) return;
+        const p = productosCache.find(x => x._docId === editandoId);
+
+        const btn = document.querySelector('#editModal .btn-admin-action.full');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Guardando...';
+
+        try {
+            await updateDoc(doc(db, 'productos', editandoId), {
+                nombre: document.getElementById('editName').value.trim(),
+                desc:   document.getElementById('editDesc').value.trim(),
+                precio: document.getElementById('editPrice').value.trim(),
+                tag:    document.getElementById('editTag').value.trim(),
+                img:    document.getElementById('editImgData').value || (p ? p.img : ''),
+            });
+            closeEditModal();
+        } catch(e) {
+            alert('Error al guardar: ' + e.message);
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Guardar Cambios';
+    };
+
+    // ─── ADMIN: CERRAR MODAL EDITAR ──────────────
+    window.closeEditModal = function() {
         document.getElementById('editModal').classList.add('hidden');
         editandoId = null;
-        // Limpiar modal
         removeImage('editImgPreview','editUploadPlaceholder','editImgData','btnRemoveEdit','editImgFile');
-    }
+    };
 
-    function guardarEdicion() {
-        let productos = getProductos();
-        const idx = productos.findIndex(p => p.id === editandoId);
-        if (idx === -1) return;
-        const nuevaImg = document.getElementById('editImgData').value || productos[idx].img;
-        productos[idx] = {
-            ...productos[idx],
-            nombre: document.getElementById('editName').value.trim(),
-            desc:   document.getElementById('editDesc').value.trim(),
-            precio: document.getElementById('editPrice').value.trim(),
-            tag:    document.getElementById('editTag').value.trim(),
-            img:    nuevaImg,
+    // ─── IMAGEN UPLOAD ───────────────────────────
+    window.previewImage = function(input, previewId, placeholderId, dataId) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const MAX = 800;
+                let w = img.width, h = img.height;
+                if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+                if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                const base64 = canvas.toDataURL('image/jpeg', 0.82);
+                const preview = document.getElementById(previewId);
+                preview.src = base64;
+                preview.classList.remove('hidden');
+                document.getElementById(placeholderId).classList.add('hidden');
+                document.getElementById(dataId).value = base64;
+                const area = document.getElementById(previewId).closest('.form-group');
+                const btnRemove = area.querySelector('.btn-remove-img');
+                if (btnRemove) btnRemove.classList.remove('hidden');
+            };
+            img.src = e.target.result;
         };
-        saveProductos(productos);
-        renderCatalogo();
-        renderListaAdmin();
-        closeEditModal();
-    }
+        reader.readAsDataURL(file);
+    };
 
-    // ─────────────────────────────────────────────
-    // FORMULARIO FOOTER
-    // ─────────────────────────────────────────────
+    window.removeImage = function(previewId, placeholderId, dataId, btnRemoveId, fileInputId) {
+        document.getElementById(previewId).classList.add('hidden');
+        document.getElementById(previewId).src = '';
+        document.getElementById(placeholderId).classList.remove('hidden');
+        document.getElementById(dataId).value = '';
+        document.getElementById(btnRemoveId).classList.add('hidden');
+        document.getElementById(fileInputId).value = '';
+    };
+
+    // ─── PANEL ADMIN TOGGLE ──────────────────────
+    window.toggleAdminPanel = function() {
+        document.getElementById('adminOverlay').classList.toggle('hidden');
+        if (!adminAuth) {
+            document.getElementById('adminLogin').classList.remove('hidden');
+            document.getElementById('adminMain').classList.add('hidden');
+        }
+    };
+    window.closeAdminPanel = function() {
+        document.getElementById('adminOverlay').classList.add('hidden');
+    };
+
+    // ─── FORMULARIO FOOTER ───────────────────────
     document.getElementById('vip-form').addEventListener('submit', function(e) {
         e.preventDefault();
-        const nombre = document.getElementById('user-name').value;
+        const nombre  = document.getElementById('user-name').value;
         const mensaje = document.getElementById('user-msg').value;
         window.open(`https://wa.me/${WHATSAPP}?text=Hola, soy ${nombre}. Quiero información sobre: ${mensaje}`, '_blank');
     });
 
-    // ─────────────────────────────────────────────
-    // INICIO
-    // ─────────────────────────────────────────────
-    renderCatalogo();
+    // ─── INICIO ──────────────────────────────────
+    try {
+        await sembrarSiVacio();
+        iniciarListener();
+    } catch(e) {
+        console.error('Error al iniciar Firebase:', e);
+        document.getElementById('catalogoLoading').innerHTML =
+            '<i class="fas fa-exclamation-triangle" style="color:#ff6b6b;font-size:2rem"></i>' +
+            '<p style="color:#ff6b6b">Error de conexión.<br>Verifica la configuración de Firebase.</p>';
+    }
+
     </script>
 </body>
 </html>
